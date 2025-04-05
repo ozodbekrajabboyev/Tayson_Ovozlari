@@ -2,7 +2,7 @@ from aiogram import Bot, Dispatcher
 from aiogram import Bot, Dispatcher
 from aiogram.filters import CommandStart,Command, or_f
 from aiogram import F, types
-from aiogram.types import (Message,InlineQuery,InlineKeyboardButton, InlineQueryResultCachedVoice)
+from aiogram.types import (Message,InlineQuery,InlineKeyboardMarkup, InlineKeyboardButton, InlineQueryResultCachedVoice)
 from data import config
 from aiogram.enums import ParseMode
 import asyncio
@@ -73,22 +73,27 @@ async def inline_voice_search(inline_query: InlineQuery):
     if not title:
         # No query entered, offer all audio files
         try:
-            all_audios = await db.select_all_audios()
+            all_audios = db.select_all_audios()
             print("***************",all_audios,"***************")
-            for item in all_audios[:20]:
+            for item in all_audios:
                 voice_file_id = item[1]
+                file_id = item[0]
                 try:
                     
-                    stats = db.get_voice_stats(voice_file_id)
+                    stats = db.get_voice_stats(file_id)
                     usage_count = stats['usage_count'] if stats else 0
                     
                     formatted_title = f"{item[2]} 🎵{usage_count}"
 
+                    keyboard1 = InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="Barcha Ovozlar", url="https://t.me/Tayson_ovozlari_bot")]
+                    ])
                     result = InlineQueryResultCachedVoice(
                         id=str(item[0]), 
                         voice_file_id=voice_file_id, 
                         title=formatted_title,
                         caption = item[2],
+                        reply_markup = keyboard1
                     )
                     results.append(result)
                 except Exception as e:
@@ -99,22 +104,26 @@ async def inline_voice_search(inline_query: InlineQuery):
     else:
         # Query entered, search for matching audio files
         try:
-            audiolar = await db.search_audios_title(title)
-            for audio in audiolar[:20]:
+            audiolar = db.search_audios_title(title)
+            for audio in audiolar:
                 voice_file_id = audio[1]
+                file_id = audio[0]
                 if voice_file_id and isinstance(voice_file_id, str) and voice_file_id.startswith("AwACAg"):
                     try:
                         
-                        stats = db.get_voice_stats(voice_file_id)
+                        stats = db.get_voice_stats(audio_id = audio[0])
                         usage_count = stats['usage_count'] if stats else 0
 
-                        formatted_title = f"{item[2]} 🎵{usage_count}"
-                         
+                        formatted_title = f"{audio[2]} 🎵{usage_count}"
+                        keyboard1 = InlineKeyboardMarkup(inline_keyboard=[
+                            [InlineKeyboardButton(text="Barcha Ovozlar", url="https://t.me/Tayson_ovozlari_bot")]
+                        ])
                         result = InlineQueryResultCachedVoice(
                             id=str(audio[0]),
                             voice_file_id=voice_file_id,
                             title=formatted_title,
-                            caption = item[2],
+                            caption = audio[2],
+                            reply_markup = keyboard1
                         )
                         results.append(result)
                     except Exception as e:
@@ -139,19 +148,23 @@ from aiogram.types import ChosenInlineResult
 
 @dp.chosen_inline_result()
 async def chosen_inline_result(chosen_result: ChosenInlineResult):
-    # Bu yerda foydalanuvchi tanlagan natijani qayta ishlashingiz mumkin
-    result_id = chosen_result.result_id  # Bu siz bergan InlineQueryResultCachedVoice id si
+    result_id = chosen_result.result_id  # bu Audio.id sifatida berilgan bo'lishi kerak
     user_id = chosen_result.from_user.id
-    
-    audio_info = await db.get_audio_by_id(result_id)
-    
+
+    # result_id str bo'lishi mumkin, uni int ga o'tkazamiz
+    try:
+        audio_id = int(result_id)
+    except ValueError:
+        print(f"Invalid audio_id: {result_id}")
+        return
+
+    # Audio ma'lumotlarini olamiz
+    audio_info = db.get_audio_by_id(audio_id)  # db.get_audio_by_id() sizda bo'lishi kerak
+
     if audio_info:
-        # Ovoz statistikasini yangilaymiz
-        voice_file_id = audio_info[1]  # voice_file_id ni olamiz
-        await db.increment_voice_usage(voice_file_id)
-        
-        # Log qilish uchun
-        print(f"User {chosen_result.from_user.id} selected voice {voice_file_id}")
+        db.increment_voice_usage(audio_id)  # audio_id orqali statistikani yangilaymiz
+        print(f"User {user_id} selected voice {audio_id}")
+
 
 
 
