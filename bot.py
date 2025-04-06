@@ -367,7 +367,7 @@ def create_inline_keyboard(user_id):
 # Admin message handler
 @dp.message(F.text == "👤Admin bilan bog'lanish")
 async def admin_message(message: Message, state: FSMContext):
-    await message.answer("👨‍💼Admin uchun xabar yuborishingiz mumkin. Xabaringizni kiriting!")
+    await message.answer("👨‍💻 @b_asilbek | @ozodbek_rajabboyev_006 \n\n 👨‍💼Admin uchun xabar yuborishingiz mumkin. Xabaringizni kiriting!")
     await state.set_state(AdminStates.waiting_for_admin_message)
 
 # Admin message handler
