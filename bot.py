@@ -142,7 +142,7 @@ async def chosen_inline_result(chosen_result: ChosenInlineResult):
 
 
 
-# ---------------------------------------------------Barcha ovozlarni chiqarish-----------------------------------------
+# -------------------------------------------------Barcha ovozlarni chiqarish-----------------------------------------
 from aiogram import types, F
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram import types
@@ -171,7 +171,7 @@ async def send_voice_page(message_or_cb, page: int):
         await message_or_cb.answer("Hech qanday ovoz topilmadi.")
         return
 
-    text_lines = [f"Barcha Goloslar ({page}-sahifa):\n"]
+    text_lines = [f"Barcha Ovozlar ({page}-sahifa):\n"]
     for i, (voice_id, title, count) in enumerate(page_items, start=start + 1):
         text_lines.append(f"/{i} | {title} | {count}")
 
@@ -243,7 +243,7 @@ async def show_voice_stats(message: Message):
 
 
 
-#kanalga obuna boshlanadi
+# kanalga obuna boshlanadi
 @dp.message(IsCheckSubChannels())
 async def kanalga_obuna(message:Message):
     text = ""
@@ -256,6 +256,7 @@ async def kanalga_obuna(message:Message):
     await message.answer(f"{text} kanallarga azo bo'ling!",reply_markup=button)
 
 
+#------------------------------------------------------ Admin -----------------------------------------
 @dp.message(Command("admin"),IsBotAdminFilter(ADMINS))
 async def is_admin(message:Message):
     await message.answer(text="Admin menu",reply_markup=admin_keyboard.admin_button)
