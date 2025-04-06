@@ -19,11 +19,11 @@ admin_button = ReplyKeyboardMarkup(
 home_button = ReplyKeyboardMarkup(
     keyboard = [
         [
-            KeyboardButton(text = "👤Admin bilan bog'lanish"),
-        ],
-        [
             KeyboardButton(text = "🔊Barcha ovozlar"),
-            KeyboardButton(text = "🔝 10 Ovozlar"),
+            KeyboardButton(text = "🔝 10 Ovozlar"),   
+        ],
+        [   
+            KeyboardButton(text = "👤Admin bilan bog'lanish"),
         ]
     ],
     resize_keyboard = True,

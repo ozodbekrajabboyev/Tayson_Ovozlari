@@ -36,12 +36,19 @@ async def start_command(message:Message,state:FSMContext):
  
     full_name = message.from_user.full_name
     telegram_id = message.from_user.id
+    
+    inline_markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="👥 Guruhga qo'shish", url="t.me/Tayson_ovozlari_bot?startgroup=true")]
+    ])
+    
     try:
         db.add_user(full_name=full_name,telegram_id=telegram_id)
-        await message.answer(text=f"Assalomu alaykum {full_name}, botimizga xush kelibsiz🙂\nBu bot orqali siz hohlagan ovozingizni topishingiz mumkin!✅", reply_markup = home_button)
+        await message.answer(text=f"Assalomu alaykum {full_name}, botimizga xush kelibsiz🙂\nBu bot orqali siz hohlagan ovozingizni topishingiz mumkin!✅", reply_markup = inline_markup)
+        await message.answer(text="Quyidagilardan birini tanlashingiz mumkin🙂! ", reply_markup = home_button)
         await state.clear()
     except:
-        await message.answer(text=f"Assalomu alaykum {full_name}. Xush kelibsiz 😊", reply_markup = home_button)
+        await message.answer(text=f"Assalomu alaykum {full_name}. Xush kelibsiz 😊", reply_markup = inline_markup)
+        await message.answer(text="Quyidagilardan birini tanlashingiz mumkin🙂! ", reply_markup = home_button)
         await state.clear()
 
 
@@ -62,85 +69,50 @@ async def about_commands(message:Message):
     await message.answer("Bot dan shikoyatingiz yoki taklifingiz bo'lsa📜\n👤Admin tugmasini bosing va \nxabaringizni yozib qoldiring✅\n\nBotdan foydalanish tartibi👇🏻\n👉🏻@voise_ovozqani_bot yozib o'zingizga kerakli ovozlarni toping🙂")
 
 
-
-# Inline query search(Searching audio messages inline)
 @dp.inline_query()
 async def inline_voice_search(inline_query: InlineQuery):
     title = inline_query.query.strip()
-
     results = []
-    print("***************",title,"***************")
-    if not title:
-        # No query entered, offer all audio files
-        try:
-            all_audios = db.select_all_audios()
-            print("***************",all_audios,"***************")
-            for item in all_audios:
-                voice_file_id = item[1]
-                file_id = item[0]
-                try:
-                    
-                    stats = db.get_voice_stats(file_id)
-                    usage_count = stats['usage_count'] if stats else 0
-                    
-                    formatted_title = f"{item[2]} 🎵{usage_count}"
+    
+    try:
+        if not title:
+            audios = db.select_all_audios(sort_by_usage = True)
+        else:
+            audios = db.search_audios_title(title)
 
-                    keyboard1 = InlineKeyboardMarkup(inline_keyboard=[
-                        [InlineKeyboardButton(text="Barcha Ovozlar", url="https://t.me/Tayson_ovozlari_bot")]
-                    ])
-                    result = InlineQueryResultCachedVoice(
-                        id=str(item[0]), 
-                        voice_file_id=voice_file_id, 
-                        title=formatted_title,
-                        caption = item[2],
-                        reply_markup = keyboard1
-                    )
-                    results.append(result)
-                except Exception as e:
-                    print(f"Error creating InlineQueryResultCachedVoice for ID {item[0]} with voice_file_id {voice_file_id}: {e}")
+        for audio in audios[:50]:  # Telegram limits to 50 results
+            if len(audio) < 3 or not audio[1]:  # Check for valid voice_file_id
+                continue
                 
-        except Exception as e:
-            print(f"Error fetching all audio files: {e}")
-    else:
-        # Query entered, search for matching audio files
-        try:
-            audiolar = db.search_audios_title(title)
-            for audio in audiolar:
-                voice_file_id = audio[1]
-                file_id = audio[0]
-                if voice_file_id and isinstance(voice_file_id, str) and voice_file_id.startswith("AwACAg"):
-                    try:
-                        
-                        stats = db.get_voice_stats(audio_id = audio[0])
-                        usage_count = stats['usage_count'] if stats else 0
-
-                        formatted_title = f"{audio[2]} 🎵{usage_count}"
-                        keyboard1 = InlineKeyboardMarkup(inline_keyboard=[
-                            [InlineKeyboardButton(text="Barcha Ovozlar", url="https://t.me/Tayson_ovozlari_bot")]
-                        ])
-                        result = InlineQueryResultCachedVoice(
-                            id=str(audio[0]),
-                            voice_file_id=voice_file_id,
-                            title=formatted_title,
-                            caption = audio[2],
-                            reply_markup = keyboard1
+            try:
+                result = InlineQueryResultCachedVoice(
+                    id=str(audio[0]),
+                    voice_file_id=audio[1],
+                    title=f"{audio[2]} 🎵{audio[3] if len(audio) > 3 else 0}",
+                    #caption=audio[2],
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                        InlineKeyboardButton(
+                            text="Barcha Ovozlar", 
+                            url="https://t.me/Tayson_ovozlari_bot"
                         )
-                        results.append(result)
-                    except Exception as e:
-                        print(f"Error creating InlineQueryResultCachedVoice for ID {audio[0]} with voice_file_id {voice_file_id}: {e}")
-                else:
-                    print(f"Invalid or malformed voice_file_id: {voice_file_id}")
-        except Exception as e:
-            print(f"Error searching audio titles: {e}")
+                    ]])
+                )
+                results.append(result)
+            except Exception as e:
+                print(f"Error creating result for audio {audio[0]}: {e}")
+                continue
+                
+    except Exception as e:
+        print(f"Error in inline query processing: {e}")
+    
+    await inline_query.answer(
+        results=results if results else [],
+        cache_time=0,
+        is_personal=True,
+        switch_pm_text="No results found" if not results else None,
+        switch_pm_parameter="start" if not results else None
+    )
 
-    if not results:
-        await inline_query.answer(results=[], cache_time=0, switch_pm_text="No results found", switch_pm_parameter="start")
-    else:
-        try:
-            await inline_query.answer(results=results, cache_time=0)
-        except Exception as e:
-            print(f"Error sending inline query answer: {e}")
-            
 
 # Tanlangan audio ustida ishlash
 
@@ -169,22 +141,100 @@ async def chosen_inline_result(chosen_result: ChosenInlineResult):
 
 
 
-# Top 10 ovozlarni chiqarish
+
+# ---------------------------------------------------Barcha ovozlarni chiqarish-----------------------------------------
+from aiogram import types, F
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram import types
+from aiogram.filters import CommandObject, Command
+
+PAGE_SIZE = 10
+
+# Inline tugmalar yaratish
+def get_pagination_keyboard(page: int, has_next: bool):
+    buttons = []
+    if page > 1:
+        buttons.append(InlineKeyboardButton(text="⬅️ Oldingi", callback_data=f"page:{page - 1}"))
+    if has_next:
+        buttons.append(InlineKeyboardButton(text="Keyingi sahifa ➡️", callback_data=f"page:{page + 1}"))
+    return InlineKeyboardMarkup(inline_keyboard=[buttons]) if buttons else None
+
+# Ovozlar ro'yxatini sahifalab yuborish
+async def send_voice_page(message_or_cb, page: int):
+    voices = db.select_all_audios(ok1 = True)  # (id, title, usage_count)
+    total = len(voices)
+    start = (page - 1) * PAGE_SIZE
+    end = start + PAGE_SIZE
+    page_items = voices[start:end]
+
+    if not page_items:
+        await message_or_cb.answer("Hech qanday ovoz topilmadi.")
+        return
+
+    text_lines = [f"Barcha Goloslar ({page}-sahifa):\n"]
+    for i, (voice_id, title, count) in enumerate(page_items, start=start + 1):
+        text_lines.append(f"/{i} | {title} | {count}")
+
+    keyboard = get_pagination_keyboard(page, has_next=end < total)
+
+    if isinstance(message_or_cb, types.Message):
+        await message_or_cb.answer("\n".join(text_lines), reply_markup=keyboard)
+    else:
+        await message_or_cb.message.edit_text("\n".join(text_lines), reply_markup=keyboard)
+
+    
+
+
+# Komanda orqali boshlash
+@dp.message((F.text == "/all_voices") | (F.text == "🔊Barcha ovozlar"))
+async def handle_all_voices(message: Message):
+    await send_voice_page(message, page=1)
+
+# Callback orqali sahifa almashtirish
+@dp.callback_query(F.data.startswith("page:"))
+async def handle_pagination(callback_query: types.CallbackQuery):
+    page = int(callback_query.data.split(":")[1])
+    await send_voice_page(callback_query, page)
+    await callback_query.answer()
+
+
+@dp.message(Command(commands=[str(i) for i in range(1, 101)]))  
+async def send_voice_by_number(message: types.Message, command: CommandObject):
+    number = int(message.text[1:])  # "/3" -> 3
+    voices = db.select_all_audios(ok = True)
+
+    if 0 < number <= len(voices):
+        voice = voices[number - 1]
+        if len(voice) > 2:  # Check if the voice tuple has the expected number of elements
+            voice_file_id = voice[1]
+            title = voice[2]
+            await message.answer_voice(voice_file_id, caption=f"🎙 {title}")
+            db.increment_voice_usage(voice[0])  # Update usage count
+        else:
+            await message.reply("❌ Audio data is incomplete.")
+    else:
+        await message.reply("❌ No'to'g'ri kommanda. Iltimos, mavjud kommandani tanlang.")
+
+
+
+
+
+#------------------------------------------------------------- Top 10 ovozlarni chiqarish-------------------------------------------
 from aiogram import F
 from aiogram.types import Message
 
-@dp.message(F.text == "/stats")
+@dp.message((F.text == "/stats") | (F.text == "🔝 10 Ovozlar"))
 async def show_voice_stats(message: Message):
     # Eng ko'p ishlatilgan 10 ta ovoz
-    top_voices = await db.get_top_voices(10)
+    top_voices = db.get_top_voices(10)
     
     if not top_voices:
         await message.answer("Hali hech qanday statistik ma'lumot yo'q.")
         return
     
     response = ["🏆 Eng ko'p ishlatilgan ovozlar:\n"]
-    for idx, (title, count, last_used) in enumerate(top_voices, 1):
-        response.append(f"{idx}. {title} - {count} marta\nSo'ngi foydalanish: {last_used}")
+    for idx, (voice_id, title, count, last_used) in enumerate(top_voices, 1):
+        response.append(f"/{voice_id} | {title} | {count}")
     
     await message.answer("\n".join(response))
 

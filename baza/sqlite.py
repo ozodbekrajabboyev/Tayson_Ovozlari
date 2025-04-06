@@ -92,15 +92,48 @@ class Database:
         sql = "SELECT * FROM Audio WHERE id = ?"
         return self.execute(sql, parameters=(audio_id,), fetchone=True)
 
-    def select_all_audios(self):
-        sql = "SELECT * FROM Audio"
+    def select_all_audios(self, sort_by_usage=False, ok = False, ok1 = False):
+        if sort_by_usage:
+            sql = """
+                SELECT 
+                    a.id,
+                    a.voice_file_id,
+                    a.title,
+                    COALESCE(vs.usage_count, 0) as usage_count
+                FROM Audio a
+                LEFT JOIN VoiceStats vs ON a.id = vs.audio_id
+                WHERE a.voice_file_id IS NOT NULL  
+                ORDER BY usage_count DESC, a.title
+                """
+        elif ok:
+            sql = "SELECT * FROM Audio"
+        elif ok1:
+            sql = """
+            SELECT a.id, a.title, COALESCE(vs.usage_count, 0) as usage_count
+            FROM Audio a
+            LEFT JOIN VoiceStats vs ON a.id = vs.audio_id
+            """
+        elif sort_by_usage == False:
+            sql = "SELECT id, title FROM Audio"
         return self.execute(sql, fetchall=True)
 
+
+
+
+
     def search_audios_title(self, title):
-        sql = f"""
-        SELECT * FROM Audio WHERE title LIKE "%{title}%"
+        sql = """
+        SELECT 
+            a.id,
+            a.voice_file_id,
+            a.title,
+            COALESCE(vs.usage_count, 0) as usage_count
+        FROM Audio a
+        LEFT JOIN VoiceStats vs ON a.id = vs.audio_id
+        WHERE a.title LIKE ?
+        ORDER BY usage_count DESC, a.title
         """
-        return self.execute(sql, fetchall=True)
+        return self.execute(sql, parameters=(f"%{title}%",), fetchall=True)
 
     # ==== Voice Stats bo‘limi ====
     def create_table_voice_stats(self):
@@ -143,11 +176,11 @@ class Database:
 
     def get_top_voices(self, limit: int = 10):
         sql = """
-        SELECT a.title, vs.usage_count, vs.last_used 
-        FROM VoiceStats vs
-        JOIN Audio a ON vs.audio_id = a.id
-        ORDER BY vs.usage_count DESC
-        LIMIT ?
+            SELECT a.id, a.title, vs.usage_count, vs.last_used 
+            FROM VoiceStats vs
+            JOIN Audio a ON vs.audio_id = a.id
+            ORDER BY vs.usage_count DESC
+            LIMIT ?
         """
         return self.execute(sql, parameters=(limit,), fetchall=True)
 
