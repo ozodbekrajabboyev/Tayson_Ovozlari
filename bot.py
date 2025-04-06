@@ -66,7 +66,7 @@ Admin bilan bog'lanmoqchi bo'lsangiz \n👤Admin tugmasini bosing va\n✉️ Xab
 # About command
 @dp.message(Command("about"))
 async def about_commands(message:Message):
-    await message.answer("Bot dan shikoyatingiz yoki taklifingiz bo'lsa📜\n👤Admin tugmasini bosing va \nxabaringizni yozib qoldiring✅\n\nBotdan foydalanish tartibi👇🏻\n👉🏻@voise_ovozqani_bot yozib o'zingizga kerakli ovozlarni toping🙂")
+    await message.answer("Bot dan shikoyatingiz yoki taklifingiz bo'lsa📜\n👤Admin tugmasini bosing va \nxabaringizni yozib qoldiring✅\n\nBotdan foydalanish tartibi👇🏻\n👉🏻@tayson_ovozlari_bot yozib o'zingizga kerakli ovozlarni toping🙂")
 
 
 @dp.inline_query()
