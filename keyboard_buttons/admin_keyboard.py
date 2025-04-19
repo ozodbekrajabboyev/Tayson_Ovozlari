@@ -24,6 +24,7 @@ home_button = ReplyKeyboardMarkup(
         ],
         [   
             KeyboardButton(text = "👤Admin bilan bog'lanish"),
+            KeyboardButton(text = "📊 Bot statistikasi")
         ]
     ],
     resize_keyboard = True,

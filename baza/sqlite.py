@@ -57,6 +57,11 @@ class Database:
         sql = "SELECT * FROM Users"
         return self.execute(sql, fetchall=True)
 
+    def check_user_exists(self, user_id: int) -> bool:
+        sql = "SELECT 1 FROM Users WHERE telegram_id = ?"
+        result = self.execute(sql, parameters=(user_id,), fetchone=True)
+        return result is not None
+        
     def select_user(self, **kwargs):
         sql = "SELECT * FROM Users WHERE "
         sql, parameters = self.format_args(sql, kwargs)

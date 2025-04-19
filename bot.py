@@ -1,4 +1,4 @@
-from aiogram import Bot, Dispatcher
+from aiogram import Bot, Dispatcher, Router
 from aiogram import Bot, Dispatcher
 from aiogram.filters import CommandStart,Command, or_f
 from aiogram import F, types
@@ -15,6 +15,7 @@ from filterss.check_sub_channel import IsCheckSubChannels
 from keyboard_buttons import admin_keyboard
 from keyboard_buttons.admin_keyboard import home_button
 from aiogram.fsm.context import FSMContext #new
+from middlewares.check_user import CheckUserMiddleware
 from states.reklama import Adverts, AudioState, AdminMSG
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 import time
@@ -80,7 +81,7 @@ async def inline_voice_search(inline_query: InlineQuery):
         else:
             audios = db.search_audios_title(title)
 
-        for audio in audios[:50]:  # Telegram limits to 50 results
+        for audio in audios:
             if len(audio) < 3 or not audio[1]:  # Check for valid voice_file_id
                 continue
                 
@@ -88,11 +89,11 @@ async def inline_voice_search(inline_query: InlineQuery):
                 result = InlineQueryResultCachedVoice(
                     id=str(audio[0]),
                     voice_file_id=audio[1],
-                    title=f"{audio[2]} 🎵{audio[3] if len(audio) > 3 else 0}",
+                    title=f"{audio[2]} 🎵{audio[3]  if len(audio) > 3 else 0} ta",
                     #caption=audio[2],
                     reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
                         InlineKeyboardButton(
-                            text="Barcha Ovozlar", 
+                            text="Barcha Ovozlar",
                             url="https://t.me/Tayson_ovozlari_bot"
                         )
                     ]])
@@ -115,7 +116,6 @@ async def inline_voice_search(inline_query: InlineQuery):
 
 
 # Tanlangan audio ustida ishlash
-
 from aiogram.types import ChosenInlineResult
 
 @dp.chosen_inline_result()
@@ -198,25 +198,22 @@ async def handle_pagination(callback_query: types.CallbackQuery):
     await callback_query.answer()
 
 
-@dp.message(Command(commands=[str(i) for i in range(1, 101)]))  
-async def send_voice_by_number(message: types.Message, command: CommandObject):
-    number = int(message.text[1:])  # "/3" -> 3
-    voices = db.select_all_audios(ok = True)
+@dp.message(lambda message: message.text.startswith('/') and message.text[1:].isdigit())
+async def send_voice_by_number(message: types.Message):
+    number = int(message.text[1:])
+    voices = db.select_all_audios(ok=True)
 
     if 0 < number <= len(voices):
         voice = voices[number - 1]
-        if len(voice) > 2:  # Check if the voice tuple has the expected number of elements
+        if len(voice) > 2:
             voice_file_id = voice[1]
             title = voice[2]
             await message.answer_voice(voice_file_id, caption=f"🎙 {title}")
-            db.increment_voice_usage(voice[0])  # Update usage count
+            db.increment_voice_usage(voice[0])
         else:
             await message.reply("❌ Audio data is incomplete.")
     else:
-        await message.reply("❌ No'to'g'ri kommanda. Iltimos, mavjud kommandani tanlang.")
-
-
-
+        await message.reply(f"❗️Siz bergan buyruq orqali ovoz topilmadi!\n\nIltimos, /1 dan /{len(voices)} gacha bo'lgan buyruqlardan birini yuboring!")
 
 
 #------------------------------------------------------------- Top 10 ovozlarni chiqarish-------------------------------------------
@@ -238,12 +235,16 @@ async def show_voice_stats(message: Message):
     
     await message.answer("\n".join(response))
 
+#-------------------------------------------- Bot Statistikasi ---------------------------------------
+@dp.message(F.text == "📊 Bot statistikasi")
+async def users_count(message:Message):
+    counts = db.count_users()
+    text = f"📊 Umumiy foydalanuvchilar soni: {counts[0]} ta"
+    await message.answer(text=text)
 
 
 
-
-
-# kanalga obuna boshlanadi
+#---------------------------------------------Kanalga obuna boshlanadi--------------------------------
 @dp.message(IsCheckSubChannels())
 async def kanalga_obuna(message:Message):
     text = ""
@@ -254,8 +255,7 @@ async def kanalga_obuna(message:Message):
     inline_channel.adjust(1,repeat=True)
     button = inline_channel.as_markup()
     await message.answer(f"{text} kanallarga azo bo'ling!",reply_markup=button)
-
-
+    
 #------------------------------------------------------ Admin -----------------------------------------
 @dp.message(Command("admin"),IsBotAdminFilter(ADMINS))
 async def is_admin(message:Message):
@@ -570,9 +570,12 @@ async def main() -> None:
     db.create_table_users()
     db.create_table_audios()
     db.create_table_voice_stats()
+    
+    dp.inline_query.middleware(CheckUserMiddleware())
+
     await set_default_commands(bot)
     await dp.start_polling(bot)
-    setup_middlewares(dispatcher=dp, bot=bot)
+    dp.inline_query.middleware(CheckUserMiddleware())
 
 
 if __name__ == "__main__":
