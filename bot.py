@@ -76,10 +76,19 @@ async def inline_voice_search(inline_query: InlineQuery):
     results = []
     
     try:
+        # Get offset from inline query (default to 0)
+        offset = int(inline_query.offset or 0)
+        MAX_RESULTS = 50  # Telegram's maximum
+
         if not title:
-            audios = db.select_all_audios(sort_by_usage = True)
+            # Get all audios sorted by usage
+            all_audios = db.select_all_audios(sort_by_usage=True)
         else:
-            audios = db.search_audios_title(title)
+            # Search audios by title
+            all_audios = db.search_audios_title(title)
+
+        # Apply pagination
+        audios = all_audios[offset:offset + MAX_RESULTS]
 
         for audio in audios:
             if len(audio) < 3 or not audio[1]:  # Check for valid voice_file_id
@@ -89,8 +98,7 @@ async def inline_voice_search(inline_query: InlineQuery):
                 result = InlineQueryResultCachedVoice(
                     id=str(audio[0]),
                     voice_file_id=audio[1],
-                    title=f"{audio[2]} 🎵{audio[3]  if len(audio) > 3 else 0} ta",
-                    #caption=audio[2],
+                    title=f"{audio[2]} 🎵{audio[3] if len(audio) > 3 else 0} ta",
                     reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
                         InlineKeyboardButton(
                             text="Barcha Ovozlar",
@@ -102,18 +110,22 @@ async def inline_voice_search(inline_query: InlineQuery):
             except Exception as e:
                 print(f"Error creating result for audio {audio[0]}: {e}")
                 continue
+
+        # Calculate next offset if there are more results
+        next_offset = str(offset + MAX_RESULTS) if (offset + MAX_RESULTS) < len(all_audios) else None
                 
     except Exception as e:
         print(f"Error in inline query processing: {e}")
+        next_offset = None
     
     await inline_query.answer(
         results=results if results else [],
         cache_time=0,
         is_personal=True,
+        next_offset=next_offset,  # This enables pagination
         switch_pm_text="No results found" if not results else None,
         switch_pm_parameter="start" if not results else None
     )
-
 
 # Tanlangan audio ustida ishlash
 from aiogram.types import ChosenInlineResult
@@ -197,8 +209,7 @@ async def handle_pagination(callback_query: types.CallbackQuery):
     await send_voice_page(callback_query, page)
     await callback_query.answer()
 
-
-@dp.message(lambda message: message.text.startswith('/') and message.text[1:].isdigit())
+@dp.message(lambda message: message.text is not None and message.text.startswith('/') and message.text[1:].isdigit())
 async def send_voice_by_number(message: types.Message):
     number = int(message.text[1:])
     voices = db.select_all_audios(ok=True)
@@ -277,24 +288,28 @@ async def advert_dp(message:Message,state:FSMContext):
     await message.answer(text="Reklama yuborishingiz mumkin!")
 
 
+from contextlib import suppress
+
 @dp.message(Adverts.adverts)
-async def send_advert(message:Message,state:FSMContext):
-    
+async def send_advert(message: Message, state: FSMContext):
     message_id = message.message_id
     from_chat_id = message.from_user.id
     users = db.all_users_id()
-    count = 0
-    for user in users:
-        try:
-            await bot.copy_message(chat_id=user[0],from_chat_id=from_chat_id,message_id=message_id)
-            count += 1
-        except:
-            pass
-        time.sleep(0.5)
-    
-    await message.answer(f"Reklama {count}ta foydalanuvchiga yuborildi!")
-    await state.clear()
+    success_count = 0
+    semaphore = asyncio.Semaphore(10)  # Limit concurrency to avoid flood limits
 
+    async def send_to_user(user_id):
+        nonlocal success_count
+        async with semaphore:
+            with suppress(Exception):  # Catch and suppress any exception
+                await bot.copy_message(chat_id=user_id, from_chat_id=from_chat_id, message_id=message_id)
+                success_count += 1
+                await asyncio.sleep(0.3)  # Delay between messages
+
+    await asyncio.gather(*(send_to_user(user[0]) for user in users))
+
+    await message.answer(f"Reklama {success_count} ta foydalanuvchiga yuborildi!")
+    await state.clear()
 
 #audio qo'shish
 
@@ -527,7 +542,10 @@ async def handle_admin_reply(message: Message, state: FSMContext):
                 fname = usr[0]  
             else:
                 logger.error("Bunday telegram_id ga ega user topilamdi!!!")
-            await bot.send_message(message.from_user.id, f"Foydalanuvchi: {fname} \n Admin: {message.from_user.full_name}\n Xabaringiz muvaffaqiyatli yuborildi!✅")           
+            
+            await bot.send_message(config.ADMINS[0], f"Foydalanuvchi: {fname} \n Admin: {message.from_user.full_name}\n Xabaringiz muvaffaqiyatli yuborildi!✅")           
+            await asyncio.sleep(0.2)
+            await bot.send_message(config.ADMINS[1], f"Foydalanuvchi: {fname} \n Admin: {message.from_user.full_name}\n Xabaringiz muvaffaqiyatli yuborildi!✅")           
             await state.clear()  # Clear state after sending the reply
         except Exception as e:
             logger.error(f"Error sending reply to user {original_user_id}: {e}")
